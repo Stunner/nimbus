@@ -244,6 +244,9 @@
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
+  if ([self.delegate respondsToSelector:@selector(tableView:titleForFooterInSection:)]) {
+    return [(id)self.delegate tableView:tableView titleForFooterInSection:section];
+  }
   NIDASSERT((section >= 0 && (NSUInteger)section < self.sections.count) || 0 == self.sections.count);
   if (section >= 0 && (NSUInteger)section < self.sections.count) {
     return [[self.sections objectAtIndex:section] footerTitle];
