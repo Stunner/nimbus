@@ -16,6 +16,7 @@
 //
 
 #import "NIAttributedLabel.h"
+#import "NIAttributedLabel+Testing.h"
 
 #import "NSMutableAttributedString+NimbusAttributedLabel.h"
 #import <QuartzCore/QuartzCore.h>
@@ -1272,25 +1273,31 @@ _NI_UIACTIONSHEET_DEPRECATION_SUPPRESSION_PUSH()
 }
 _NI_UIACTIONSHEET_DEPRECATION_SUPPRESSION_POP()
 
+_NI_UIACTIONSHEET_DEPRECATION_SUPPRESSION_PUSH()
 - (void)_longPressTimerDidFire:(NSTimer *)timer {
   self.longPressTimer = nil;
 
   if (nil != self.touchedLink) {
     self.actionSheetLink = self.touchedLink;
 
-    _NI_UIACTIONSHEET_DEPRECATION_SUPPRESSION_PUSH()
-    UIActionSheet* actionSheet = [self actionSheetForResult:self.actionSheetLink];
-    _NI_UIACTIONSHEET_DEPRECATION_SUPPRESSION_POP()
+    UIActionSheet *actionSheet;
+    id<NIAttributedLabelDelegate> delegate = self.delegate;
+    if ([delegate respondsToSelector:@selector(attributedLabel:didLongPressTextCheckingResult:atPoint:)]) {
+      // Adoption of the new long press delegate callback is treated as opting out of the action sheet altogether.
+      [delegate attributedLabel:self didLongPressTextCheckingResult:self.touchedLink atPoint:self.touchPoint];
+    } else {
+      // Create the action sheet to be shown.
+      actionSheet = [self actionSheetForResult:self.actionSheetLink];
 
-    BOOL shouldPresent = YES;
-    if ([self.delegate respondsToSelector:@selector(attributedLabel:shouldPresentActionSheet:withTextCheckingResult:atPoint:)]) {
-      // Give the delegate the opportunity to not show the action sheet or to present their own.
-      _NI_UIACTIONSHEET_DEPRECATION_SUPPRESSION_PUSH()
-      shouldPresent = [self.delegate attributedLabel:self shouldPresentActionSheet:actionSheet withTextCheckingResult:self.touchedLink atPoint:self.touchPoint];
-      _NI_UIACTIONSHEET_DEPRECATION_SUPPRESSION_POP()
+      if ([delegate respondsToSelector:@selector(attributedLabel:shouldPresentActionSheet:withTextCheckingResult:atPoint:)]) {
+        // Give the delegate the opportunity to not show the action sheet.
+        if (![delegate attributedLabel:self shouldPresentActionSheet:actionSheet withTextCheckingResult:self.touchedLink atPoint:self.touchPoint]) {
+          actionSheet = nil;
+        }
+      }
     }
 
-    if (shouldPresent) {
+    if (actionSheet) {
       if (NIIsPad()) {
         [actionSheet showFromRect:CGRectMake(self.touchPoint.x - 22, self.touchPoint.y - 22, 44, 44) inView:self animated:YES];
       } else {
@@ -1302,6 +1309,7 @@ _NI_UIACTIONSHEET_DEPRECATION_SUPPRESSION_POP()
     }
   }
 }
+_NI_UIACTIONSHEET_DEPRECATION_SUPPRESSION_POP()
 
 - (void)_applyLinkStyleWithResults:(NSArray *)results toAttributedString:(NSMutableAttributedString *)attributedString {
   for (NSTextCheckingResult* result in results) {
@@ -1755,8 +1763,20 @@ _NI_UIACTIONSHEET_DEPRECATION_SUPPRESSION_POP()
   NSArray *allLinks = [[NSArray arrayWithArray:self.detectedlinkLocations]
       arrayByAddingObjectsFromArray:self.explicitLinkLocations];
 
+  // If the entire label is a single link, then we want to only end up with one accessibility
+  // element - not one UIAccessibilityTraitLink element for the link and another
+  // UIAccessibilityTraitNone element for the entire label.
+  BOOL entireLabelIsOneLink = NO;
+  if (allLinks.count == 1) {
+    NSTextCheckingResult *onlyLink = allLinks.firstObject;
+    NSRange entireLabelRange = NSMakeRange(0, self.mutableAttributedString.length);
+    if (NSEqualRanges(onlyLink.range, entireLabelRange)) {
+      entireLabelIsOneLink = YES;
+    }
+  }
+
   // TODO(kaikaiz): remove the first condition when shouldSortLinksLast is fully deprecated.
-  if (_shouldSortLinksLast || (_linkOrdering != NILinkOrderingOriginal)) {
+  if ((_shouldSortLinksLast || (_linkOrdering != NILinkOrderingOriginal)) && !entireLabelIsOneLink) {
     for (NSTextCheckingResult *result in allLinks) {
       NSArray *rectsForLink = [self _rectsForRange:result.range];
       if (!NIIsArrayWithObjects(rectsForLink)) {

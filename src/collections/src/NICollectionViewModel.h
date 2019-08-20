@@ -29,10 +29,33 @@
 @class NICollectionViewModelFooter;  // Provides the information for a footer.
 
 /**
- * A non-mutable collection view model that complies to the UICollectionViewDataSource protocol.
+ * A protocol that declares the interface for a non-mutable collection view model.
  *
- * This model allows you to easily create a data source for a UICollectionView without having to
- * implement the UICollectionViewDataSource methods in your controller.
+ * A default implementation of this protocol is provided with the NICollectionViewModel class.
+ * If you want to customize the implementation of your collection view model while keeping the base
+ * interface the same, conform to this protocol and implement the declared methods at minimum.
+ *
+ * The model class that conforms to this protocol is intended to allow you to easily create a data
+ * source for a UICollectionView without having to implement the UICollectionViewDataSource methods
+ * in your controller.
+ *
+ * @ingroup CollectionViewModels
+ */
+@protocol NICollectionViewModeling <NIActionsDataSource, UICollectionViewDataSource, UICollectionViewDataSourcePrefetching>
+
+#pragma mark Accessing Objects
+
+- (NSIndexPath *)indexPathForObject:(id)object;
+
+#pragma mark Creating Collection View Cells
+
+@property (nonatomic, weak) id<NICollectionViewModelDelegate> delegate;
+
+@end
+
+/**
+ * A non-mutable collection view model object that provides a lightweight implementation of
+ * the NICollectionViewModeling protocol.
  *
  * This base class is non-mutable, much like an NSArray. You must initialize this model with
  * the contents when you create it.
@@ -42,23 +65,16 @@
  *
  * @ingroup CollectionViewModels
  */
-@interface NICollectionViewModel : NSObject <NIActionsDataSource, UICollectionViewDataSource>
+@interface NICollectionViewModel : NSObject <NICollectionViewModeling>
 
-#pragma mark Creating Collection View Models
+- (id)initWithDelegate:(id<NICollectionViewModelDelegate>)delegate NS_DESIGNATED_INITIALIZER;
 
-// Designated initializer.
-- (id)initWithDelegate:(id<NICollectionViewModelDelegate>)delegate;
 - (id)initWithListArray:(NSArray *)listArray delegate:(id<NICollectionViewModelDelegate>)delegate;
+
 // Each NSString in the array starts a new section. Any other object is a new row (with exception of certain model-specific objects).
 - (id)initWithSectionedArray:(NSArray *)sectionedArray delegate:(id<NICollectionViewModelDelegate>)delegate;
 
-#pragma mark Accessing Objects
-
-// This method is not appropriate for performance critical codepaths.
-- (NSIndexPath *)indexPathForObject:(id)object;
-
-#pragma mark Creating Collection View Cells
-
+// Redeclaring for property autosynthesis.
 @property (nonatomic, weak) id<NICollectionViewModelDelegate> delegate;
 
 @end
@@ -76,7 +92,7 @@
  *
  * The implementation of this method will generally use object to customize the cell.
  */
-- (UICollectionViewCell *)collectionViewModel:(NICollectionViewModel *)collectionViewModel
+- (UICollectionViewCell *)collectionViewModel:(id<NICollectionViewModeling>)collectionViewModel
                         cellForCollectionView:(UICollectionView *)collectionView
                                   atIndexPath:(NSIndexPath *)indexPath
                                    withObject:(id)object;
@@ -89,10 +105,26 @@
  * The value of the kind property and indexPath are implementation-dependent
  * based on the type of UICollectionViewLayout being used.
  */
-- (UICollectionReusableView *)collectionViewModel:(NICollectionViewModel *)collectionViewModel
+- (UICollectionReusableView *)collectionViewModel:(id<NICollectionViewModeling>)collectionViewModel
                                    collectionView:(UICollectionView *)collectionView
                 viewForSupplementaryElementOfKind:(NSString *)kind
                                       atIndexPath:(NSIndexPath *)indexPath;
+
+/**
+ * Prefetch one or more collection view cells at given index paths with given objects.
+ */
+- (void)collectionViewModel:(id<NICollectionViewModeling>)collectionViewModel
+               collectionView:(UICollectionView *)collectionView
+    prefetchItemsAtIndexPaths:(NSArray<NSIndexPath *> *)indexPaths
+                  withObjects:(NSArray<id> *)objects NS_AVAILABLE_IOS(10_0);
+
+/**
+ * Cancel the running prefetching task for one or more collection view cells at given index paths with given objects.
+ */
+- (void)collectionViewModel:(id<NICollectionViewModeling>)collectionViewModel
+                        collectionView:(UICollectionView *)collectionView
+    cancelPrefetchingItemsAtIndexPaths:(NSArray<NSIndexPath *> *)indexPaths
+                           withObjects:(NSArray<id> *)objects NS_AVAILABLE_IOS(10_0);
 
 @end
 
